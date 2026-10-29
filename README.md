@@ -153,6 +153,18 @@ Input parameters validation, including pagination, and failures of the upstream 
 - `.env` should not be committed.
 - The API does not accidentally leak the credentials to the consumers of API.
 
+## Assumptions and Design Decisions
+
+- The local meter export is treated as the source of truth for meter records and transformer-to-meter mapping.
+
+- Transformer information, meter coordinates, and consumption readings are retrieved from the upstream portal.
+
+- The meter's dtCode is assumed to correspond to the transformer's code.
+
+- Portal credentials are supplied through environment variables and are not committed to the repository.
+
+- The API is read-only and does not modify upstream records.
+
 
 ## Known Limitations
 
@@ -170,6 +182,28 @@ Input parameters validation, including pagination, and failures of the upstream 
 - Provide a search functionality for transformers that would cover all available pages.
 - Add logging, rate limiting, and consistent error messages.
 - Develop an OpenAPI description and validation for the API.
+
+## Reflection
+
+**1. What assumptions have you made?**
+
+The local meter export is assumed to be the source of truth for the meter data. Also, the meter `dtCode` is equal to the transformer code.
+
+**2. What was the hardest part, and how did you overcome it?**
+
+The hardest part was authentication via the portal, which involved specifying certain headers and session cookies. By inspecting the login response and modifying the request configuration accordingly, the problem was overcome.
+
+**3. If you could spend one more day, what would you change?**
+
+More automated tests, better session handling, error handling and possibility to search transformers across all pages.
+
+**4. What mistake have you made while solving this task?**
+
+Initially, there were authentication errors because of incorrect request configuration in the login. After debugging the response, the mistake was identified.
+
+**5. If you were evaluating your own solution, what would you criticize?**
+
+Limited automated test coverage, reliance on the local meter export, which might become out of date, and incomplete session handling.
 
 ## License
 
