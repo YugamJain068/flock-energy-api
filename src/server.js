@@ -113,6 +113,129 @@ app.get("/api/meters/:meterId/consumption", async (req, res, next) => {
   }
 });
 
+
+const TRANSFORMER_PAGE_SIZE = 20;
+
+// GET /api/transformers?page=1&search=Malviya
+app.get("/api/transformers", async (req, res, next) => {
+  try {
+    const page = Number(req.query.page ?? 1);
+
+    if (!Number.isInteger(page) || page < 1) {
+      return res.status(400).json({
+        error: "page must be a positive integer",
+      });
+    }
+
+    const upstream = await portalGet(
+      `/portal/dts?page=${page}`
+    );
+
+    if (!Array.isArray(upstream.data)) {
+      return res.status(502).json({
+        error: "Invalid transformer data from upstream portal",
+      });
+    }
+
+    const search = String(req.query.search ?? "")
+      .trim()
+      .toLowerCase();
+
+    let transformers = upstream.data;
+
+    if (search) {
+      transformers = transformers.filter((transformer) =>
+        [
+          transformer.code,
+          transformer.name,
+          transformer.feederCode,
+        ].some((value) =>
+          String(value ?? "").toLowerCase().includes(search)
+        )
+      );
+    }
+
+    res.json({
+      data: transformers,
+      total: upstream.total,
+      page: upstream.page,
+      pageSize: upstream.pageSize ?? TRANSFORMER_PAGE_SIZE,
+      count: transformers.length,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/transformers/DT-001
+app.get("/api/transformers/:transformerId", async (req, res, next) => {
+  try {
+    const transformerId = req.params.transformerId;
+    const pageSize = TRANSFORMER_PAGE_SIZE;
+
+    // Search the available pages for this transformer.
+    const firstPage = await portalGet("/portal/dts?page=1");
+
+    if (!Array.isArray(firstPage.data)) {
+      return res.status(502).json({
+        error: "Invalid transformer data from upstream portal",
+      });
+    }
+
+    const total = Number(firstPage.total ?? firstPage.data.length);
+    const totalPages = Math.ceil(
+      total / (firstPage.pageSize || pageSize)
+    );
+
+    let transformer = firstPage.data.find(
+      (item) => item.code === transformerId
+    );
+
+    for (
+      let page = 2;
+      !transformer && page <= totalPages;
+      page++
+    ) {
+      const upstream = await portalGet(`/portal/dts?page=${page}`);
+
+      if (!Array.isArray(upstream.data)) {
+        return res.status(502).json({
+          error: "Invalid transformer data from upstream portal",
+        });
+      }
+
+      transformer = upstream.data.find(
+        (item) => item.code === transformerId
+      );
+    }
+
+    if (!transformer) {
+      return res.status(404).json({
+        error: "Transformer not found",
+      });
+    }
+
+    res.json(transformer);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/transformers/:transformerId/meters", (req, res) => {
+  const transformerId = req.params.transformerId;
+
+  const metersForTransformer = meters.filter(
+    (meter) => meter.dtCode === transformerId
+  );
+
+  res.json({
+    transformerId,
+    count: metersForTransformer.length,
+    data: metersForTransformer,
+  });
+});
+
+
 // Centralized error handler
 app.use((error, req, res, next) => {
   console.error("API request failed:", {
